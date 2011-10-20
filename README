@@ -1,0 +1,15 @@
+Files in this repository:
+
+gc_iptables.py
+--------------
+PlanetLab NodeManager plugin for generating a GENICloud node's
+iptables configuration. 
+
+globalinfo.py
+-------------
+Testbed-wide information used by the gc_iptables plugin.
+
+slices.py
+---------
+Used by the gc_iptables plugin.  For each GENICloud slice, lists the
+source IP addresses or networks from which SSH to VMs is permitted. 
