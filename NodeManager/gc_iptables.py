@@ -36,7 +36,7 @@ def pushLnprofEvent(path):
         logger.log("ERROR: gc_iptables: Can't push event, no node id!")
         return
 
-    url = "http://www.lnprof.org/command?action=pushlog&ns=genicloud&node=%s&path=%s" % (myNodeId, path)
+    url = "http://www.lnprof.org/command?action=pushlog&ns=genicloud&node=%s&log_path=%s" % (myNodeId, path)
     (tmpfile, obj) = urllib.urlretrieve(url)
 
 def GetSlivers(data, config, plc = None):
@@ -67,19 +67,9 @@ def GetSlivers(data, config, plc = None):
     writeMiscRules(f)
     writeAdminChain(f)
     
-    srcrange = mySiteInfo['node-srcrange']
+    writePortChain(f, data['slivers'])
+    writeVMChain(f, data['slivers'])
 
-    # Iterate over sliver data twice to make it deterministic
-    for sliver in data['slivers']:
-        if sliver['name'] == 'myplc_sfaam':
-            writeSFAChain(f)
-
-    for sliver in data['slivers']:
-        if sliver['name'] == 'gc_eucacc':
-            writeCloudControllerChain(f, srcrange, mySiteInfo['vm-network'])
-
-    writeNodeChain(f, mySiteInfo['gc_eucacc'])
-    writeVMChain(f, mySiteInfo['myplc_sfaam'])
     writeFooter(f)
 
     logger.log("gc_iptables: wrote temp file: %s" % tmpfile)
@@ -90,7 +80,7 @@ def GetSlivers(data, config, plc = None):
     else:
         logger.log("gc_iptables: configuration changed, committing")
         commit(tmpfile)
-        pushLnprofEvent("Info/Iptables config updated")
+        pushLnprofEvent("Info/Iptables%20config%20updated")
 
     os.unlink(tmpfile)
 
@@ -101,9 +91,6 @@ def writeHeader(conf):
 :OUTPUT ACCEPT
 :BLACKLIST -
 :LOGDROP -
-:EUCACC -
-:EUCANODE -
-:SFA -
 :VM -
 
 -A OUTPUT -j BLACKLIST
@@ -116,75 +103,57 @@ def writeHeader(conf):
 
 def writeMiscRules(conf):
     conf.write("""
-# Open ports for Hadoop and Ganglia
--A INPUT -p tcp -m state --state NEW -m tcp --dport 50000:55000 -j ACCEPT
--A INPUT -p tcp -m state --state NEW -m tcp --dport 8649 -j ACCEPT
--A INPUT -p udp --dport 8649 -j ACCEPT
-
+# Miscellaneous rules
+-A INPUT -d 198.55.32.85 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
 """)
-
-def writeSFAChain(conf):
-    conf.write("""
-# Open ports on hosts running SFA
--A SFA -p tcp -m state --state NEW -m tcp --dport 12345 -j ACCEPT
--A SFA -p tcp -m state --state NEW -m tcp --dport 12346 -j ACCEPT
--A SFA -p tcp -m state --state NEW -m tcp --dport 12347 -j ACCEPT
-
-""")
-    conf.write("# SFA access\n")
-    for ip in globalinfo.sfa_access:
-        conf.write("-A INPUT -s %s -j SFA\n" % ip)
 
 def writeAdminChain(conf):
     conf.write("\n# Admin access is open to nodes and VMs\n")
     for address, name in globalinfo.admins:
         conf.write("# %s\n" % name)
         conf.write("-A INPUT -s %s -j ACCEPT\n" % address)
-        conf.write("-A FORWARD -s %s -j ACCEPT\n" % address)
 
-def writeCloudControllerChain(conf, srcrange, vmnet):
-    conf.write("""
-# Open ports for the Eucalyptus Cloud Controller (in slice gc_eucacc)
--A EUCACC -p tcp -m state --state NEW -m tcp --dport 8443 -j ACCEPT
--A EUCACC -p tcp -m state --state NEW -m tcp --dport 8773 -j ACCEPT
--A EUCACC -p tcp -m state --state NEW -m tcp --dport 8774 -j ACCEPT
--A EUCACC -p tcp -m state --state NEW -m tcp --dport 9001 -j ACCEPT
--A EUCACC -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
-
-""")
-
-    conf.write("# Connections from nodes to Cloud Controller\n")
-    conf.write("-A INPUT -m iprange --src-range %s -j EUCACC\n" % srcrange)
-    conf.write("# Connections from VMs to Cloud Controller\n")
-    conf.write("-A INPUT -s %s -j EUCACC\n" % vmnet)
-
-def writeNodeChain(conf, cchost):
-    conf.write("""
-# Open ports on Eucalyptus nodes
--A EUCANODE -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
--A EUCANODE -p tcp -m state --state NEW -m tcp --dport 8775 -j ACCEPT
-
-""")
-    conf.write("# Connections from Cloud Controller to node\n")
-    conf.write("-A INPUT -s %s -j EUCANODE\n" % cchost)
-
-def writeVMChain(conf, sfahost):
-    instances = getInstanceDB(sfahost)
-    my_instances = getMyInstances()
-
+def writeVMChain(conf, slivers):
     conf.write("\n# VM chain for limiting access to SSH\n")
 
-    for name in my_instances:
-        inst = instances[name]
-        ips = slices.approved_ips[inst['slice']]
-        for ip in ips:
-            conf.write("-A VM -s %s -d %s -j ACCEPT\n" % (ip, inst['ip']))
+    for sliver in slivers:
+        for attr in sliver['attributes']:
+            # logger.log("%s: %s is %s" % (sliver['name'], attr['tagname'], attr['value']))
+            if attr['tagname'] == 'fw_ssh_ips':
+                ips = attr['value'].split()
+                for ip in ips:
+                    # Need to check for valid IP address or network here...
+                    conf.write("-A VM -s %s -j ACCEPT\n" % ip)
     conf.write("-A VM -j REJECT --reject-with icmp-host-prohibited\n")
         
+def writePortChain(conf, slivers):
+    conf.write("\n# Open ports that have been requested by slices\n")
+
+    for sliver in slivers:
+        for attr in sliver['attributes']:
+            if attr['tagname'] == 'fw_open_ports':
+                conf.write("# For slice %s\n" % sliver['name'])
+                ports = attr['value'].split()
+                for port in ports:
+                    try:
+                        (protocol, num) = port.split('/')
+                        logger.log("Open port for slice %s: %s %s" % (sliver['name'], protocol, num))
+                        # Need to check that the port is valid.
+                        # Also don't let people open some well-known ports like tcp/22, or all ports?
+                        if protocol == "tcp":
+                            conf.write("-A INPUT -p tcp -m state --state NEW -m tcp --dport %s -j ACCEPT\n" % num)
+                        elif protocol == "udp":
+                            conf.write("-A INPUT -p udp -m udp --dport %s -j ACCEPT\n" % num)
+                        else:
+                            logger.log("Unknown protocol for slice %s: %s" % (sliver['name'], protocol))
+                    except:
+                        logger.log("Invalid port argument for slice %s: %s" % (sliver['name'], port))
+
+
 def writeFooter(conf):
     conf.write("""
 # Limit access to SSH on VMs
--A FORWARD -p tcp -m state --state NEW -m tcp --dport 22 -j VM
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 22 -j VM
 
 # respond to ping
 -A INPUT -p icmp -m icmp --icmp-type 0 -j ACCEPT
