@@ -1,0 +1,121 @@
+*filter
+:INPUT ACCEPT
+:FORWARD ACCEPT
+:OUTPUT ACCEPT
+:BLACKLIST -
+:LOGDROP -
+:EUCACC -
+:EUCANODE -
+:ADMIN -
+:SFA -
+:VM -
+
+-A OUTPUT -j BLACKLIST
+-A LOGDROP -j LOG
+-A LOGDROP -j DROP
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+
+# Node Specific... not sure why this is here...
+-A INPUT -d 198.55.32.85 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A INPUT -d 198.55.32.85 -p tcp -m state --state NEW -m tcp --dport 53 -j ACCEPT
+-A INPUT -d 198.55.32.84 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A INPUT -d 198.55.32.80 -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+# Open up SSH as per Rick's request.
+-A INPUT -d 198.55.32.85 -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+-A INPUT -d 198.55.32.75 -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+
+# SFA chain
+-A SFA -p tcp -m state --state NEW -m tcp --dport 12345 -j ACCEPT
+-A SFA -p tcp -m state --state NEW -m tcp --dport 12346 -j ACCEPT
+-A SFA -p tcp -m state --state NEW -m tcp --dport 12347 -j ACCEPT
+-A SFA -j RETURN
+
+# Admin chain
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 8443 -j ACCEPT
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 8773 -j ACCEPT
+# Hadoop ports
+-A ADMIN -p tcp -m state --state NEW -m tcp --dport 50000:55000 -j ACCEPT
+-A ADMIN -j RETURN
+
+# Allow access to the SFA only from GENICloud Central and testing machines
+-A INPUT -s 128.112.139.111 -j SFA
+-A INPUT -s 128.112.139.195 -j SFA
+
+# Admin addresses 
+# Princeton
+-A INPUT -s 128.112.0.0/16 -j ADMIN   
+# UVic
+-A INPUT -s 142.104.0.0/16 -j ADMIN
+# Marco
+-A INPUT -s 66.65.45.211 -j ADMIN
+# Chris Pearson
+-A INPUT -s 24.108.136.153 -j ADMIN
+# Andy Bavier
+-A INPUT -s 173.72.109.232 -j ADMIN
+
+# Slice gc_sfaam
+
+# Slice gc_eucacc
+-A EUCACC -p tcp -m state --state NEW -m tcp --dport 8443 -j ACCEPT
+-A EUCACC -p tcp -m state --state NEW -m tcp --dport 8773 -j ACCEPT
+-A EUCACC -p tcp -m state --state NEW -m tcp --dport 8774 -j ACCEPT
+-A EUCACC -p tcp -m state --state NEW -m tcp --dport 9001 -j ACCEPT
+-A EUCACC -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A EUCACC -j RETURN
+
+-A INPUT -s 169.228.66.0/24 -d 169.228.66.144 -j EUCACC
+-A INPUT -s 198.55.32.0/21 -d 198.55.32.75 -j EUCACC
+
+# Eucalyptus nodes
+-A EUCANODE -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+-A EUCANODE -p tcp -m state --state NEW -m tcp --dport 8775 -j ACCEPT
+# Hadoop ports
+-A EUCANODE -p tcp -m state --state NEW -m tcp --dport 50000:55000 -j ACCEPT
+# Ganglia
+-A EUCANODE -p tcp -m state --state NEW -m tcp --dport 8649 -j ACCEPT
+-A EUCANODE -p udp --dport 8649 -j ACCEPT
+-A EUCANODE -j RETURN
+
+# Accept connections from euca-cc on greenlight144.sysnet.ucsd.edu
+-A INPUT -s 169.228.66.144 -j EUCANODE
+
+# Accept connections from euca-cc on opencirrus-07501.hpl.hp.com
+-A INPUT -s 198.55.32.75 -j EUCANODE
+# inter and intra clusters connections
+-A INPUT -m iprange --src-range 198.55.32.76-198.55.32.86 -j EUCANODE
+-A INPUT -m iprange --src-range 169.228.66.144-169.228.66.150 -j EUCANODE
+-A INPUT -m iprange --src-range 131.246.112.35-131.246.112.39 -j EUCANODE
+
+# respond to ping
+-A INPUT -p icmp -m icmp --icmp-type 0 -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A INPUT -j REJECT --reject-with icmp-host-prohibited
+
+# VM Access Control
+# Princeton
+-A VM -s 128.112.0.0/16 -j ACCEPT
+# Marco
+-A VM -s 66.65.47.204 -j ACCEPT
+# U Vic
+-A VM -s 142.104.0.0/16 -j ACCEPT
+-A VM -j REJECT --reject-with icmp-host-prohibited
+
+-A FORWARD -p tcp -m state --state NEW -m tcp --dport 22 -j VM
+
+
+COMMIT
+
+*mangle
+:PREROUTING ACCEPT
+:INPUT ACCEPT
+:FORWARD ACCEPT
+:OUTPUT ACCEPT
+:POSTROUTING ACCEPT
+# -A POSTROUTING -o eth0 -j ULOG --ulog-cprange 54 --ulog-qthreshold 16
+COMMIT

@@ -1,15 +1,16 @@
-Files in this repository:
+The files in this repository are used to control per-VM firewall rules
+on GENICloud when running Eucalyptus in SYSTEM networking mode.
 
-gc_iptables.py
---------------
+NodeManager/gc_iptables.py
+--------------------------
 PlanetLab NodeManager plugin for generating a GENICloud node's
 iptables configuration. 
 
-globalinfo.py
--------------
+MyPLC/globalinfo.py
+-------------------
 Testbed-wide information used by the gc_iptables plugin.
 
-slices.py
----------
+MyPLC/slices.py
+---------------
 Used by the gc_iptables plugin.  For each GENICloud slice, lists the
 source IP addresses or networks from which SSH to VMs is permitted. 
