@@ -1,5 +1,5 @@
 The files in this repository are used to control per-VM firewall rules
-on GENICloud when running Eucalyptus in SYSTEM networking mode.
+when running GENICloud as a vanilla PlanetLab installation.
 
 NodeManager/gc_iptables.py
 --------------------------
