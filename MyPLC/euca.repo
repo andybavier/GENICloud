@@ -1,0 +1,6 @@
+[euca]
+name=Eucalyptus
+baseurl=http://www.eucalyptussoftware.com/downloads/repo/eucalyptus/2.0.3/yum/fedora/x86_64/
+enabled=1
+gpgcheck=0
+
