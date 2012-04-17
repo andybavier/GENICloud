@@ -1,16 +1,32 @@
-The files in this repository are used to control per-VM firewall rules
-when running GENICloud as a vanilla PlanetLab installation.
+GENICloud has gone through several iterations with regard to how
+virtualization is managed on the platform:
 
-NodeManager/gc_iptables.py
---------------------------
-PlanetLab NodeManager plugin for generating a GENICloud node's
-iptables configuration. 
+v0.1: use Eucalyptus + KVM (branch 'eucalyptus' in git)
+v0.2: use PlanetLab + VServer (branch 'planetlab' in git)
+v0.3: use OpenStack + LXC (master in git)
 
-MyPLC/globalinfo.py
--------------------
-Testbed-wide information used by the gc_iptables plugin.
 
-MyPLC/slices.py
----------------
-Used by the gc_iptables plugin.  For each GENICloud slice, lists the
-source IP addresses or networks from which SSH to VMs is permitted. 
+GENICloud v0.3 consists of three conceptual layers:
+
+- MyPLC is used to image and configure the software on the physical
+nodes.  We are running a PlanetLab node image based on Fedora 16.
+
+- OpenStack manages the virtualization layer.  We are using Linux
+Containers as our virtualization technology.
+
+- The GENI AM API provided by the SFA is the user interface for
+creating and deleting virtual machines.  GENICloud is federated with
+PlanetLab and accepts PlanetLab-issued credentials.
+
+
+The structure of this repository is as follows:
+
+install/
+- Scripts for setting up OpenStack and SFA on the GENICloud nodes
+
+MyPLC/
+- Configuration files at GENICloud Central for managing the deployment
+
+NodeManager/
+- Plugins for the PlanetLab NodeManager to specialize the nodes to
+run OpenStack
