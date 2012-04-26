@@ -39,3 +39,6 @@ else
     echo "Sleeping 5 secs ..."
     sleep 5
 fi
+
+# libvirt-sock doesn't exist when nova-compute is started
+/sbin/service openstack-nova-compute restart

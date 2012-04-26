@@ -7,16 +7,12 @@ yum -y install openstack-nova mysql-server unzip polkit
 
 openstack-nova-db-setup -y --rootpw ""
 
+# [GENICLOUD-49] database not started
+chkconfig mysqld on
+
 service rabbitmq-server start
 chkconfig rabbitmq-server on
 
-# Need to add user "nova" to sudoers file
-
-# Libvirtd is already running on a PlanetLab node
-# service libvirtd start
-# chkconfig libvirtd on
-
-# Need to fix this...
 chmod 777 /var/run/libvirt/libvirt-sock
 
 # Fix up /vservers directories
